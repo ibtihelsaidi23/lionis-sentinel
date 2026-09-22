@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lionis Sentinel — assistant et analyse des publications</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink:#0E1B33;
+  --ink-soft:#3F5375;
+  --ink-faint:#93A2BC;
+  --paper:#F6F1E4;
+  --surface:#FFFFFF;
+  --line:#E1DAC3;
+  --line-strong:#CBC0A0;
+  --teal:#13284D;
+  --teal-soft:#E7E9F1;
+  --gold:#B4862D;
+  --gold-soft:#F3E6C4;
+  --brick:#9E3B2E;
+  --radius:4px;
+  --sidebar:250px;
+  font-size:16px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:.9375rem;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--teal)}
+.num{font-variant-numeric:tabular-nums lining-nums}
+
+/* ---------- squelette ---------- */
+.app{display:grid;grid-template-columns:var(--sidebar) 1fr;min-height:100vh}
+.rail{
+  background:var(--ink);color:#DCE1EC;padding:22px 18px 18px;
+  display:flex;flex-direction:column;gap:26px;position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:11px}
+.brand img{width:34px;height:auto;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.brand .brandText{display:flex;flex-direction:column;line-height:1.15}
+.brand b{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:1.32rem;letter-spacing:-.01em;color:var(--gold-soft)}
+.brand span{font-size:.7rem;color:#7C89A6}
+.rail h3{
+  margin:0 0 8px;font-size:.72rem;font-weight:600;color:#7C89A6;letter-spacing:.02em;
+}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{
+  text-align:left;background:none;border:0;color:#C0C8DC;padding:9px 11px;border-radius:var(--radius);
+  cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;
+}
+.nav button:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav button[aria-current="true"]{background:var(--gold);color:#1B1204;font-weight:600}
+.nav small{color:#8492AE;font-size:.72rem}
+.nav button[aria-current="true"] small{color:#4A3208}
+.src{display:flex;flex-direction:column;gap:6px}
+.src label{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:var(--radius);cursor:pointer}
+.src label:hover{background:rgba(255,255,255,.06)}
+.src input{margin-top:3px;accent-color:var(--gold)}
+.src em{display:block;font-style:normal;font-size:.74rem;color:#7C89A6}
+.rail .file{margin-top:4px}
+.rail .file input{display:none}
+.rail .file span{
+  display:block;text-align:center;border:1px dashed #3A4A6B;border-radius:var(--radius);
+  padding:8px;font-size:.8rem;color:#A7B0C8;cursor:pointer
+}
+.rail .file span:hover{border-color:var(--gold);color:var(--gold-soft)}
+.status{margin-top:auto;font-size:.76rem;color:#7C89A6;border-top:1px solid #263454;padding-top:12px}
+.status .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brick);margin-right:6px}
+.status.ok .dot{background:#4FB286}
+.status input{
+  width:100%;margin-top:8px;background:#08132A;border:1px solid #263454;color:#C0C8DC;
+  padding:5px 7px;border-radius:var(--radius);font-size:.74rem
+}
+
+main{padding:28px 34px 56px;max-width:1180px}
+.view[hidden]{display:none}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:22px;flex-wrap:wrap}
+.head h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:1.65rem;margin:0;letter-spacing:-.015em}
+.head p{margin:4px 0 0;color:var(--ink-soft);max-width:58ch}
+.ghost{
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);
+  padding:7px 13px;cursor:pointer
+}
+.ghost:hover{border-color:var(--teal);color:var(--teal)}
+.solid{background:var(--teal);color:#fff;border:1px solid var(--teal);border-radius:var(--radius);padding:8px 16px;cursor:pointer;font-weight:600}
+.solid:hover{background:#0C1E3D}
+.solid:disabled,.ghost:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.panel > h2{
+  margin:0;padding:13px 16px;border-bottom:1px solid var(--line);font-size:.9rem;font-weight:600;
+  display:flex;justify-content:space-between;align-items:center;gap:12px
+}
+.panel > h2 em{font-style:normal;font-weight:400;color:var(--ink-faint);font-size:.78rem}
+.panel .body{padding:16px}
+
+/* ---------- assistant ---------- */
+.chat{display:grid;grid-template-columns:1fr 268px;gap:20px;align-items:start}
+.thread{height:min(62vh,560px);overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+.msg{max-width:78%;padding:11px 14px;border-radius:var(--radius);white-space:pre-wrap;word-break:break-word}
+.msg.bot{background:var(--paper);border-left:3px solid var(--teal)}
+.msg.me{background:var(--ink);color:#EAF1EF;align-self:flex-end}
+.msg.err{background:#FBEDEB;border-left:3px solid var(--brick)}
+.msg .meta{display:block;font-size:.72rem;color:var(--ink-faint);margin-bottom:4px}
+.msg.me .meta{color:#9CB4B1}
+.msg .dl{
+  display:inline-block;margin-top:10px;background:var(--gold-soft);border:1px solid #E0CB9A;
+  color:#6E4E0B;padding:6px 12px;border-radius:var(--radius);text-decoration:none;font-weight:600;font-size:.85rem
+}
+.msg .dl:hover{background:#EFE0BF}
+.composer{border-top:1px solid var(--line);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.composer .row{display:flex;gap:9px}
+.composer textarea{
+  flex:1;resize:none;border:1px solid var(--line-strong);border-radius:var(--radius);padding:9px 11px;min-height:46px
+}
+.opts{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:.82rem;color:var(--ink-soft)}
+.opts label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.opts input{accent-color:var(--teal)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  background:var(--teal-soft);border:1px solid #C7CCDD;color:#13284D;border-radius:999px;
+  padding:4px 11px;font-size:.8rem;cursor:pointer
+}
+.chip:hover{background:#CBE3DF}
+.chip b{font-weight:600;color:#3C6E69;margin-left:5px;font-size:.72rem}
+
+/* ---------- indicateurs ---------- */
+.hero{
+  display:grid;grid-template-columns:minmax(230px,.9fr) 2fr;gap:0;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:20px
+}
+.hero .big{padding:22px 24px;border-right:1px solid var(--line)}
+.hero .big .n{
+  font-family:Fraunces,Georgia,serif;font-size:3.4rem;line-height:1;font-weight:600;
+  letter-spacing:-.03em;display:block
+}
+.hero .big .l{color:var(--ink-soft);margin-top:6px;display:block}
+.hero .big .r{color:var(--ink-faint);font-size:.8rem;margin-top:10px;display:block}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+.stats div{padding:16px 18px;border-left:1px solid var(--line)}
+.stats div:first-child{border-left:0}
+.stats .n{font-size:1.5rem;font-weight:600;font-family:Fraunces,Georgia,serif;display:block;line-height:1.1}
+.stats .l{font-size:.78rem;color:var(--ink-soft);display:block;margin-top:3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px;margin-bottom:20px}
+.wide{grid-column:1/-1}
+canvas{max-width:100%}
+.segmented{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden}
+.segmented button{background:var(--surface);border:0;padding:4px 11px;cursor:pointer;font-size:.8rem;border-left:1px solid var(--line)}
+.segmented button:first-child{border-left:0}
+.segmented button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+.rank{list-style:none;margin:0;padding:0}
+.rank li{padding:9px 16px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;position:relative}
+.rank li:last-child{border-bottom:0}
+.rank .bar{position:absolute;left:0;top:0;bottom:0;background:var(--teal-soft);z-index:0}
+.rank span,.rank strong{position:relative;z-index:1}
+.rank strong{font-weight:600;font-variant-numeric:tabular-nums}
+.groupCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:16px}
+.groupCard{border:1px solid var(--line);border-radius:var(--radius);padding:14px;border-top:3px solid var(--line-strong)}
+.groupCard.empty-data{opacity:.55}
+.groupCard .gTitle{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.groupCard .gEmoji{font-size:1.3rem}
+.groupCard .gName{font-weight:600;font-size:.88rem;line-height:1.25}
+.groupCard .gStats{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:.82rem}
+.groupCard .gStats b{display:block;font-size:1.15rem;font-family:Fraunces,Georgia,serif;font-weight:600}
+.groupCard .gEmptyNote{font-size:.78rem;color:var(--ink-faint);margin-top:8px}
+.groupCard a{font-size:.76rem}
+.words{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;padding:16px}
+.words button{background:none;border:0;cursor:pointer;color:var(--ink);padding:0;line-height:1.2}
+.words button:hover{color:var(--gold);text-decoration:underline}
+.feed{list-style:none;margin:0;padding:0;max-height:420px;overflow-y:auto}
+.feed li{padding:12px 16px;border-bottom:1px solid var(--line)}
+.feed li:last-child{border-bottom:0}
+.feed .who{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--ink-soft);margin-bottom:4px}
+.feed .who b{color:var(--ink);font-weight:600}
+.feed p{margin:0;font-size:.875rem}
+.feed .eng{color:var(--gold);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ---------- explorateur ---------- */
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;padding:16px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:.78rem;color:var(--ink-soft)}
+.field select,.field input{border:1px solid var(--line-strong);border-radius:var(--radius);padding:7px 9px;background:var(--surface)}
+.actions{display:flex;gap:10px;align-items:center;padding:0 16px 16px;flex-wrap:wrap}
+.actions .count{margin-left:auto;font-size:.82rem;color:var(--ink-soft)}
+table{width:100%;border-collapse:collapse;font-size:.875rem}
+th,td{text-align:left;padding:8px 16px;border-bottom:1px solid var(--line)}
+th{font-size:.76rem;color:var(--ink-soft);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:hover{background:#F5F8F7}
+.empty{padding:28px 16px;text-align:center;color:var(--ink-soft)}
+.empty b{display:block;color:var(--ink);margin-bottom:5px;font-weight:600}
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:10px 18px;border-radius:var(--radius);font-size:.85rem;z-index:50;box-shadow:0 6px 20px rgba(18,38,46,.25)
+}
+.loading{color:var(--ink-faint);padding:16px;font-size:.85rem}
+
+@media (max-width:980px){
+  .app{grid-template-columns:1fr}
+  .rail{position:static;height:auto}
+  main{padding:20px 16px 44px}
+  .chat{grid-template-columns:1fr}
+  .hero{grid-template-columns:1fr}
+  .hero .big{border-right:0;border-bottom:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= barre latérale ================= -->
+  <aside class="rail">
+    <div class="brand"><b>Lionis Sentinel</b></div>
+
+    <div>
+      <h3>Jeu de données</h3>
+      <div class="src" id="sourcePicker">
+        <label><input type="radio" name="src" value="posts" checked>
+          <span>Publications<em>table social_post</em></span></label>
+        <label><input type="radio" name="src" value="comments">
+          <span>Commentaires<em>table social_commentaire</em></span></label>
+        <label id="sessionOpt" hidden><input type="radio" name="src" value="session">
+          <span>Fichier importé<em id="sessionName">—</em></span></label>
+      </div>
+      <div class="file">
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+        <span onclick="document.getElementById('fileInput').click()" id="fileLabel">Importer un CSV ou Excel</span>
+      </div>
+      <div class="file" style="margin-top:6px">
+        <input type="file" id="jsonInput" accept=".json">
+        <span onclick="document.getElementById('jsonInput').click()" id="jsonLabel">Importer un JSON (posts + commentaires)</span>
+      </div>
+    </div>
+
+    <div>
+      <h3>Espaces</h3>
+      <nav class="nav" id="nav">
+        <button data-view="chat" aria-current="true">Assistant <small>chercher</small></button>
+        <button data-view="dash">Tableau de bord <small>mesurer</small></button>
+        <button data-view="bi">Explorateur <small>croiser</small></button>
+      </nav>
+    </div>
+
+    <div class="status" id="status">
+      <span class="dot"></span><span id="statusText">Connexion au serveur…</span>
+      <input id="apiUrl" value="http://localhost:8000" aria-label="Adresse de l'API">
+    </div>
+  </aside>
+
+  <main>
+    <!-- ================= assistant ================= -->
+    <section class="view" id="view-chat">
+      <div class="head">
+        <div>
+          <h1>Assistant de recherche</h1>
+          <p>Décrivez qui vous cherchez, en français, en arabe ou en arabizi. L'assistant filtre les publications et prépare un fichier Excel des résultats.</p>
+        </div>
+      </div>
+      <div class="chat">
+        <div class="panel">
+          <div class="thread" id="thread"></div>
+          <div class="composer">
+            <div class="opts">
+              <label><input type="radio" name="mode" value="auto" checked> Compréhension automatique</label>
+              <label><input type="radio" name="mode" value="keyword"> Mot-clé exact</label>
+              <label><input type="checkbox" id="useLlm"> Renfort LLM local</label>
+            </div>
+            <div class="row">
+              <textarea id="input" rows="2" placeholder="Ex. les personnes qui cherchent un centre pour le bac français"></textarea>
+              <button class="solid" id="send">Chercher</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Mots fréquents <em id="kwHint">dans les données</em></h2>
+          <div class="body" style="padding:12px">
+            <div class="chips" id="chips"><span class="loading">Chargement…</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= tableau de bord ================= -->
+    <section class="view" id="view-dash" hidden>
+      <div class="head">
+        <div>
+          <h1>Tableau de bord</h1>
+          <p id="dashSub">Vue d'ensemble du corpus suivi.</p>
+        </div>
+        <button class="ghost" id="refresh">Actualiser</button>
+      </div>
+      <div class="panel" style="margin-bottom:20px">
+        <h2>Vue par groupe <em>couverture du scraping</em></h2>
+        <div class="groupCards" id="groupCards"><p class="loading">Chargement…</p></div>
+        <div class="body" style="border-top:1px solid var(--line);padding-top:16px">
+          <canvas id="cGroupPie" height="120"></canvas>
+        </div>
+      </div>
+      <div id="dashBody"><div class="panel"><p class="loading">Chargement des indicateurs…</p></div></div>
+    </section>
+
+    <!-- ================= explorateur BI ================= -->
+    <section class="view" id="view-bi" hidden>
+      <div class="head">
+        <div>
+          <h1>Explorateur</h1>
+          <p>Choisissez un axe d'analyse, une mesure et des filtres. Le calcul est fait côté serveur sur l'ensemble des données.</p>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:20px">
+        <h2>Paramètres du calcul</h2>
+        <div class="controls">
+          <div class="field"><label for="dim">Axe d'analyse</label><select id="dim"></select></div>
+          <div class="field"><label for="mes">Mesure</label><select id="mes"></select></div>
+          <div class="field"><label for="viz">Affichage</label>
+            <select id="viz">
+              <option value="bar">Barres</option>
+              <option value="line">Courbe</option>
+              <option value="doughnut">Anneau</option>
+            </select></div>
+          <div class="field"><label for="limit">Nombre de valeurs</label>
+            <select id="limit"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></div>
+          <div class="field"><label for="fKeyword">Filtre mot-clé</label><input id="fKeyword" placeholder="centre, nlawj"></div>
+          <div class="field"><label for="fActor">Filtre auteur</label><input id="fActor" placeholder="nom ou fragment"></div>
+          <div class="field"><label for="fFrom">À partir du</label><input id="fFrom" type="date"></div>
+          <div class="field"><label for="fTo">Jusqu'au</label><input id="fTo" type="date"></div>
+          <div class="field"><label for="fEng">Engagement minimum</label><input id="fEng" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div class="actions">
+          <button class="solid" id="run">Calculer</button>
+          <button class="ghost" id="reset">Réinitialiser les filtres</button>
+          <button class="ghost" id="export">Exporter en Excel</button>
+          <span class="count" id="biCount"></span>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:20px">
+        <h2 id="biTitle">Résultat <em id="biMeta"></em></h2>
+        <div class="body"><canvas id="biChart" height="130"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>Détail chiffré</h2>
+        <div id="biTable"><p class="loading">Lancez un calcul pour afficher le détail.</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* =======================================================================
+   État global
+   ======================================================================= */
+const state = {
+  api: localStorage.getItem('vigie.api') || 'http://localhost:8000',
+  source: 'posts',
+  sessionId: null,
+  sessionFile: null,
+  overview: null,
+  charts: {},
+  dashMetric: 'volume'
+};
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const fmt = n => (n === null || n === undefined || Number.isNaN(n)) ? '—'
+  : Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+
+$('#apiUrl').value = state.api;
+$('#apiUrl').addEventListener('change', e => {
+  state.api = e.target.value.replace(/\/$/, '');
+  localStorage.setItem('vigie.api', state.api);
+  ping(); loadKeywords(); state.overview = null; if (currentView === 'dash') loadDashboard();
+});
+
+function toast(text) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(state.api + path, options);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  return res;
+}
+
+/* source courante telle que l'attend le backend */
+function sourceParam() {
+  return state.source === 'session' ? `session:${state.sessionId}` : state.source;
+}
+
+async function ping() {
+  const el = $('#status'), txt = $('#statusText');
+  try {
+    await api('/api/analytics/meta');
+    el.classList.add('ok'); txt.textContent = 'Serveur connecté';
+  } catch (e) {
+    el.classList.remove('ok'); txt.textContent = 'Serveur injoignable';
+  }
+}
+
+/* =======================================================================
+   Navigation
+   ======================================================================= */
+let currentView = 'chat';
+$$('#nav button').forEach(btn => btn.addEventListener('click', () => {
+  currentView = btn.dataset.view;
+  $$('#nav button').forEach(b => b.setAttribute('aria-current', String(b === btn)));
+  ['chat', 'dash', 'bi'].forEach(v => $('#view-' + v).hidden = (v !== currentView));
+  if (currentView === 'dash' && !state.overview) loadDashboard();
+  if (currentView === 'bi' && !$('#dim').options.length) loadMeta();
+}));
+
+$('#sourcePicker').addEventListener('change', e => {
+  state.source = e.target.value;
+  state.overview = null;
+  loadKeywords();
+  if (currentView === 'dash') loadDashboard();
+  say('bot', `Source active : ${sourceLabel()}.`);
+});
+
+function sourceLabel() {
+  if (state.source === 'posts') return 'publications de la base';
+  if (state.source === 'comments') return 'commentaires de la base';
+  return state.sessionFile || 'fichier importé';
+}
+
+/* =======================================================================
+   Import de fichier
+   ======================================================================= */
+$('#fileInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $('#fileLabel').textContent = 'Import en cours…';
+  const body = new FormData(); body.append('file', file);
+  try {
+    const data = await (await api('/api/chatbot/upload', { method: 'POST', body })).json();
+    state.sessionId = data.session_id;
+    state.sessionFile = data.filename;
+    state.source = 'session';
+    state.overview = null;
+    $('#sessionOpt').hidden = false;
+    $('#sessionName').textContent = `${data.filename} · ${fmt(data.row_count)} lignes`;
+    $('#sessionOpt input').checked = true;
+    $('#fileLabel').textContent = 'Importer un autre fichier';
+    say('bot', `Fichier importé : ${data.filename}\n${fmt(data.row_count)} lignes, colonne de texte détectée : « ${data.text_column} ».`);
+    loadKeywords();
+    if (currentView === 'dash') loadDashboard();
+  } catch (err) {
+    $('#fileLabel').textContent = 'Importer un CSV ou Excel';
+    say('err', `Import impossible : ${err.message}`);
+  }
+});
+
+/* =======================================================================
+   Assistant
+   ======================================================================= */
+const thread = $('#thread');
+
+function say(kind, text, extra) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + (kind === 'me' ? 'me' : kind === 'err' ? 'err' : 'bot');
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  meta.textContent = kind === 'me' ? 'Vous' : kind === 'err' ? 'Erreur' : 'Assistant';
+  el.appendChild(meta);
+  el.appendChild(document.createTextNode(text));
+  if (extra && extra.fileId) {
+    const a = document.createElement('a');
+    a.className = 'dl';
+    a.href = `${state.api}/api/chatbot/download/${extra.fileId}`;
+    a.textContent = `Télécharger ${extra.fileName || 'le fichier'}`;
+    el.appendChild(a);
+  }
+  thread.appendChild(el);
+  thread.scrollTop = thread.scrollHeight;
+  return el;
+}
+
+say('bot', "Bonjour. Posez votre recherche en langage naturel — par exemple « les personnes qui cherchent un centre pour le bac français ». Passez en mot-clé exact pour chercher un terme tel quel, y compris en arabizi.");
+
+async function send() {
+  const input = $('#input');
+  const message = input.value.trim();
+  if (!message) return;
+  const mode = $('input[name="mode"]:checked').value;
+  const useLlm = $('#useLlm').checked;
+
+  say('me', message);
+  input.value = '';
+  $('#send').disabled = true;
+  const pending = say('bot', 'Analyse en cours…');
+
+  try {
+    let res;
+    if (state.source === 'session') {
+      if (!state.sessionId) throw new Error("Aucun fichier importé.");
+      res = await api('/api/chatbot/query', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: state.sessionId, message, use_llm: useLlm, mode })
+      });
+    } else {
+      res = await api('/api/chatbot/query-db', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: state.source, message, use_llm: useLlm, mode })
+      });
+    }
+    const data = await res.json();
+    pending.remove();
+    say('bot', data.reply, { fileId: data.download_file_id, fileName: data.download_filename });
+  } catch (err) {
+    pending.remove();
+    say('err', `${err.message}\n\nVérifiez que le serveur tourne (uvicorn main:app) et que DATABASE_URL est renseigné dans backend/.env. Vous pouvez aussi importer un fichier CSV pour travailler sans base.`);
+  } finally {
+    $('#send').disabled = false;
+  }
+}
+
+$('#send').addEventListener('click', send);
+$('#input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+async function loadKeywords() {
+  const box = $('#chips');
+  box.innerHTML = '<span class="loading">Chargement…</span>';
+  $('#kwHint').textContent = sourceLabel();
+  try {
+    const path = state.source === 'session'
+      ? `/api/chatbot/keywords?session_id=${state.sessionId}&limit=24`
+      : `/api/chatbot/keywords-db?source=${state.source}&limit=24`;
+    const data = await (await api(path)).json();
+    box.innerHTML = '';
+    if (!data.keywords.length) { box.innerHTML = '<span class="loading">Aucun mot à proposer.</span>'; return; }
+    data.keywords.forEach(k => {
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.innerHTML = `${k.word}<b>${fmt(k.count)}</b>`;
+      b.addEventListener('click', () => {
+        $('input[name="mode"][value="keyword"]').checked = true;
+        $('#input').value = k.word;
+        send();
+      });
+      box.appendChild(b);
+    });
+  } catch (err) {
+    box.innerHTML = `<span class="loading">Mots indisponibles : ${err.message}</span>`;
+  }
+}
+
+/* =======================================================================
+   Graphiques (Chart.js)
+   ======================================================================= */
+const palette = { teal: '#13284D', gold: '#B4862D', ink: '#0E1B33', faint: '#93A2BC', line: '#E1DAC3' };
+
+if (window.Chart) {
+  Chart.defaults.font.family = "'Public Sans', system-ui, sans-serif";
+  Chart.defaults.color = '#4A6169';
+  Chart.defaults.plugins.legend.display = false;
+  Chart.defaults.maintainAspectRatio = false;
+}
+
+function draw(id, config) {
+  if (!window.Chart) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (state.charts[id]) state.charts[id].destroy();
+  state.charts[id] = new Chart(el, config);
+}
+
+const axes = (horizontal = false) => ({
+  x: { grid: { display: horizontal, color: palette.line }, border: { color: palette.line }, ticks: { maxRotation: 0, autoSkipPadding: 14 } },
+  y: { grid: { display: !horizontal, color: palette.line }, border: { display: false }, beginAtZero: true }
+});
+
+function barConfig(rows, color = palette.teal, horizontal = false) {
+  return {
+    type: 'bar',
+    data: { labels: rows.map(r => r.label), datasets: [{ data: rows.map(r => r.value), backgroundColor: color, borderRadius: 2, maxBarThickness: 34 }] },
+    options: { indexAxis: horizontal ? 'y' : 'x', scales: axes(horizontal), plugins: { tooltip: { callbacks: { label: c => fmt(c.parsed[horizontal ? 'x' : 'y']) } } } }
+  };
+}
+
+function lineConfig(rows, color = palette.teal) {
+  return {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.label),
+      datasets: [{ data: rows.map(r => r.value), borderColor: color, backgroundColor: 'rgba(23,99,95,.10)',
+        fill: true, tension: .28, pointRadius: rows.length > 40 ? 0 : 2.5, pointBackgroundColor: color, borderWidth: 2 }]
+    },
+    options: { scales: axes(), plugins: { tooltip: { callbacks: { label: c => fmt(c.parsed.y) } } } }
+  };
+}
+
+/* =======================================================================
+   Tableau de bord
+   ======================================================================= */
+$('#refresh').addEventListener('click', () => loadDashboard(true));
+
+async function loadDashboard(refresh = false) {
+  const host = $('#dashBody');
+  host.innerHTML = '<div class="panel"><p class="loading">Chargement des indicateurs…</p></div>';
+  $('#dashSub').textContent = `Vue d'ensemble — ${sourceLabel()}.`;
+  loadGroups();
+
+  try {
+    const data = await (await api(`/api/analytics/overview?source=${encodeURIComponent(sourceParam())}&refresh=${refresh}`)).json();
+    state.overview = data;
+    if (data.empty) {
+      host.innerHTML = `<div class="panel"><div class="empty"><b>Aucune donnée dans cette source</b>Lancez un scraping, ou importez un fichier CSV depuis la barre latérale.</div></div>`;
+      return;
+    }
+    renderDashboard(data);
+  } catch (err) {
+    host.innerHTML = `<div class="panel"><div class="empty"><b>Indicateurs indisponibles</b>${err.message}<br><br>
+      Démarrez le serveur avec <code>uvicorn main:app --reload</code>, vérifiez <code>DATABASE_URL</code>, ou importez un fichier CSV.</div></div>`;
+  }
+}
+
+function renderDashboard(d) {
+  const k = d.kpis;
+  const period = k.date_min ? `du ${k.date_min} au ${k.date_max}` : 'période non datée';
+
+  $('#dashBody').innerHTML = `
+    <div class="hero">
+      <div class="big">
+        <span class="n num">${fmt(k.rows)}</span>
+        <span class="l">publications suivies</span>
+        <span class="r">${period} · ${fmt(k.actors)} auteurs distincts</span>
+      </div>
+      <div class="stats">
+        <div><span class="n num">${fmt(k.likes)}</span><span class="l">réactions</span></div>
+        <div><span class="n num">${fmt(k.comments)}</span><span class="l">commentaires</span></div>
+        <div><span class="n num">${fmt(k.shares)}</span><span class="l">partages</span></div>
+        <div><span class="n num">${fmt(k.engagement_avg)}</span><span class="l">engagement moyen</span></div>
+        <div><span class="n num">${fmt(k.silent_share)} %</span><span class="l">sans réaction</span></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel wide">
+        <h2>Activité dans le temps
+          <span class="segmented" id="metricSwitch">
+            <button data-m="volume" aria-pressed="true">Publications</button>
+            <button data-m="engagement" aria-pressed="false">Engagement</button>
+          </span>
+        </h2>
+        <div class="body"><canvas id="cTime" height="110"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>Heures de publication <em>24 h</em></h2>
+        <div class="body"><canvas id="cHours" height="200"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>Jours de la semaine</h2>
+        <div class="body"><canvas id="cDays" height="200"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>Auteurs les plus actifs <em>top ${d.top_actors.length}</em></h2>
+        <ul class="rank" id="actorList"></ul>
+      </div>
+
+      <div class="panel">
+        <h2>Intentions détectées <em>règles du moteur NLP</em></h2>
+        <ul class="rank" id="conceptList"></ul>
+      </div>
+
+      <div class="panel wide">
+        <h2>Vocabulaire du corpus <em>cliquez un mot pour lancer la recherche</em></h2>
+        <div class="words" id="wordCloud"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Publications les plus engageantes</h2>
+        <ul class="feed" id="topFeed"></ul>
+      </div>
+
+      <div class="panel">
+        <h2>Dernières publications</h2>
+        <ul class="feed" id="lastFeed"></ul>
+      </div>
+    </div>`;
+
+  drawTime();
+  $$('#metricSwitch button').forEach(b => b.addEventListener('click', () => {
+    state.dashMetric = b.dataset.m;
+    $$('#metricSwitch button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    drawTime();
+  }));
+
+  draw('cHours', barConfig(d.hours, palette.teal));
+  draw('cDays', barConfig(d.weekdays, palette.gold));
+
+  rank($('#actorList'), d.top_actors.map(a => ({ label: a.label, value: a.value })), 'publications');
+  rank($('#conceptList'), d.concepts.map(c => ({ label: c.label, value: c.value })), 'publications');
+
+  const max = Math.max(...d.keywords.map(w => w.count), 1);
+  $('#wordCloud').innerHTML = '';
+  d.keywords.forEach(w => {
+    const b = document.createElement('button');
+    const size = 0.85 + (w.count / max) * 1.15;
+    b.style.fontSize = size.toFixed(2) + 'rem';
+    b.style.fontWeight = w.count / max > .55 ? 600 : 400;
+    b.style.color = w.count / max > .55 ? palette.ink : '#4A6169';
+    b.textContent = w.word;
+    b.title = `${fmt(w.count)} occurrences`;
+    b.addEventListener('click', () => {
+      $('#nav button[data-view="chat"]').click();
+      $('input[name="mode"][value="keyword"]').checked = true;
+      $('#input').value = w.word;
+      send();
+    });
+    $('#wordCloud').appendChild(b);
+  });
+
+  feed($('#topFeed'), d.top_posts, true);
+  feed($('#lastFeed'), d.latest, false);
+}
+
+function drawTime() {
+  const d = state.overview;
+  const rows = state.dashMetric === 'volume' ? d.timeseries : d.engagement_series;
+  draw('cTime', lineConfig(rows, state.dashMetric === 'volume' ? palette.teal : palette.gold));
+}
+
+function rank(host, rows, unit) {
+  const max = Math.max(...rows.map(r => r.value), 1);
+  host.innerHTML = '';
+  rows.forEach(r => {
+    const li = document.createElement('li');
+    li.innerHTML = `<div class="bar" style="width:${(r.value / max * 100).toFixed(1)}%"></div>
+      <span>${escapeHtml(r.label)}</span><strong class="num">${fmt(r.value)}</strong>`;
+    li.title = `${fmt(r.value)} ${unit}`;
+    host.appendChild(li);
+  });
+}
+
+function feed(host, items, showEngagement) {
+  host.innerHTML = '';
+  if (!items.length) { host.innerHTML = '<li class="loading">Rien à afficher.</li>'; return; }
+  items.forEach(it => {
+    const li = document.createElement('li');
+    const right = showEngagement
+      ? `<span class="eng num">${fmt(it.engagement)} interactions</span>`
+      : `<span>${it.date}</span>`;
+    li.innerHTML = `<div class="who"><b>${escapeHtml(it.actor)}</b>${right}</div>
+      <p>${escapeHtml(it.text) || '<em>sans texte</em>'}</p>
+      ${it.url ? `<a href="${escapeAttr(it.url)}" target="_blank" rel="noopener" style="font-size:.78rem">Voir la publication</a>` : ''}`;
+    host.appendChild(li);
+  });
+}
+
+const escapeHtml = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const escapeAttr = s => escapeHtml(s).replace(/'/g, '&#39;');
+
+/* =======================================================================
+   Import JSON combiné (posts + commentaires, extension FB Post Scraper)
+   ======================================================================= */
+$('#jsonInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $('#jsonLabel').textContent = 'Import en cours…';
+  const body = new FormData(); body.append('file', file);
+  try {
+    const data = await (await api('/api/chatbot/upload-json', { method: 'POST', body })).json();
+    state.sessionId = data.session_id;
+    state.sessionFile = data.filename;
+    state.source = 'session';
+    state.overview = null;
+    $('#sessionOpt').hidden = false;
+    $('#sessionName').textContent = `${data.filename} · ${fmt(data.post_count)} publications, ${fmt(data.comment_count)} commentaires`;
+    $('#sessionOpt input').checked = true;
+    $('#jsonLabel').textContent = 'Importer un autre JSON';
+    const found = data.groups.filter(g => g.has_data).map(g => g.name).join(', ') || 'aucun groupe reconnu';
+    say('bot', `Import combiné réussi : ${fmt(data.post_count)} publications et ${fmt(data.comment_count)} commentaires liés.\nGroupe(s) détecté(s) : ${found}.`);
+    loadKeywords();
+    if (currentView === 'dash') loadDashboard();
+  } catch (err) {
+    $('#jsonLabel').textContent = 'Importer un JSON (posts + commentaires)';
+    say('err', `Import JSON impossible : ${err.message}`);
+  }
+});
+
+/* =======================================================================
+   Vue par groupe
+   ======================================================================= */
+async function loadGroups() {
+  const host = $('#groupCards');
+  try {
+    const data = await (await api(`/api/analytics/groups?source=${encodeURIComponent(sourceParam())}`)).json();
+    host.innerHTML = '';
+    data.groups.forEach(g => {
+      const card = document.createElement('div');
+      card.className = 'groupCard' + (g.posts === 0 ? ' empty-data' : '');
+      card.style.borderTopColor = g.color;
+      card.innerHTML = `
+        <div class="gTitle"><span class="gEmoji">${g.emoji}</span><span class="gName">${escapeHtml(g.name)}</span></div>
+        <div class="gStats">
+          <div><b class="num">${fmt(g.posts)}</b>publications</div>
+          <div><b class="num">${fmt(g.comments)}</b>commentaires</div>
+          <div><b class="num">${fmt(g.likes)}</b>réactions</div>
+          <div><b class="num">${fmt(g.avg_engagement)}</b>engagement moyen</div>
+        </div>
+        ${g.posts === 0 ? `<p class="gEmptyNote">Pas encore scrapé.</p>` : ''}
+        ${g.url ? `<a href="${escapeAttr(g.url)}" target="_blank" rel="noopener">Voir le groupe</a>` : ''}`;
+      host.appendChild(card);
+    });
+    if (data.unmatched_posts) {
+      const note = document.createElement('p');
+      note.className = 'gEmptyNote';
+      note.style.gridColumn = '1/-1';
+      note.textContent = `${fmt(data.unmatched_posts)} publication(s) sans groupe reconnu.`;
+      host.appendChild(note);
+    }
+
+    // Diagramme en secteur : répartition des publications par groupe
+    const pieRows = data.groups
+      .filter(g => g.posts > 0)
+      .map(g => ({ label: g.name, value: g.posts, color: g.color }));
+    if (data.unmatched_posts) {
+      pieRows.push({ label: 'Non identifié', value: data.unmatched_posts, color: '#8AA0A7' });
+    }
+    if (pieRows.length && window.Chart) {
+      draw('cGroupPie', {
+        type: 'doughnut',
+        data: {
+          labels: pieRows.map(r => r.label),
+          datasets: [{ data: pieRows.map(r => r.value), backgroundColor: pieRows.map(r => r.color), borderWidth: 1, borderColor: '#fff' }]
+        },
+        options: { cutout: '55%', plugins: { legend: { display: true, position: 'right', labels: { boxWidth: 10, font: { size: 11 } } } } }
+      });
+    } else if (window.Chart) {
+      if (state.charts.cGroupPie) { state.charts.cGroupPie.destroy(); delete state.charts.cGroupPie; }
+    }
+  } catch (err) {
+    host.innerHTML = `<p class="loading">Vue par groupe indisponible : ${err.message}</p>`;
+  }
+}
+
+/* =======================================================================
+   Explorateur BI
+   ======================================================================= */
+async function loadMeta() {
+  try {
+    const m = await (await api('/api/analytics/meta')).json();
+    $('#dim').innerHTML = m.dimensions.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
+    $('#mes').innerHTML = m.measures.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
+    runExplore();
+  } catch (err) {
+    toast('Menus indisponibles : ' + err.message);
+  }
+}
+
+function exploreBody() {
+  return {
+    source: sourceParam(),
+    dimension: $('#dim').value,
+    measure: $('#mes').value,
+    limit: Number($('#limit').value),
+    sort: 'auto',
+    filters: {
+      keyword: $('#fKeyword').value.trim() || null,
+      actor: $('#fActor').value.trim() || null,
+      date_from: $('#fFrom').value || null,
+      date_to: $('#fTo').value || null,
+      min_engagement: $('#fEng').value ? Number($('#fEng').value) : null
+    }
+  };
+}
+
+async function runExplore() {
+  const btn = $('#run'); btn.disabled = true; btn.textContent = 'Calcul…';
+  $('#biTable').innerHTML = '<p class="loading">Calcul en cours…</p>';
+  try {
+    const body = exploreBody();
+    const data = await (await api('/api/analytics/explore', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    })).json();
+
+    const dimLabel = $('#dim').selectedOptions[0].text;
+    $('#biTitle').innerHTML = `${data.measure_label || 'Résultat'} par ${dimLabel.toLowerCase()} <em id="biMeta">${sourceLabel()}</em>`;
+    $('#biCount').textContent = `${fmt(data.matched)} publications retenues sur ${fmt(data.total)}`;
+
+    if (!data.rows.length) {
+      if (state.charts.biChart) { state.charts.biChart.destroy(); delete state.charts.biChart; }
+      $('#biTable').innerHTML = `<div class="empty"><b>Aucun résultat</b>Élargissez la période ou retirez le filtre mot-clé.</div>`;
+      return;
+    }
+
+    const viz = $('#viz').value;
+    if (viz === 'doughnut') {
+      const colors = data.rows.map((_, i) => `hsl(${178 - i * 9} ${48 - i}% ${28 + i * 4}%)`);
+      draw('biChart', {
+        type: 'doughnut',
+        data: { labels: data.rows.map(r => r.label), datasets: [{ data: data.rows.map(r => r.value), backgroundColor: colors, borderWidth: 1, borderColor: '#fff' }] },
+        options: { cutout: '58%', plugins: { legend: { display: true, position: 'right', labels: { boxWidth: 10, font: { size: 11 } } } } }
+      });
+    } else if (viz === 'line') {
+      draw('biChart', lineConfig(data.rows, palette.teal));
+    } else {
+      const horizontal = ['actor', 'concept'].includes(body.dimension);
+      draw('biChart', barConfig(data.rows, palette.teal, horizontal));
+    }
+
+    const total = data.rows.reduce((s, r) => s + r.value, 0) || 1;
+    $('#biTable').innerHTML = `<table>
+      <thead><tr><th>${dimLabel}</th><th class="n">${data.measure_label}</th><th class="n">Part</th><th class="n">Publications</th></tr></thead>
+      <tbody>${data.rows.map(r => `<tr>
+        <td>${escapeHtml(r.label)}</td>
+        <td class="n">${fmt(r.value)}</td>
+        <td class="n">${(r.value / total * 100).toFixed(1)} %</td>
+        <td class="n">${fmt(r.rows)}</td></tr>`).join('')}</tbody></table>`;
+  } catch (err) {
+    $('#biTable').innerHTML = `<div class="empty"><b>Calcul impossible</b>${escapeHtml(err.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Calculer';
+  }
+}
+
+$('#run').addEventListener('click', runExplore);
+['dim', 'mes', 'viz', 'limit'].forEach(id => $('#' + id).addEventListener('change', runExplore));
+$('#reset').addEventListener('click', () => {
+  ['fKeyword', 'fActor', 'fFrom', 'fTo', 'fEng'].forEach(id => $('#' + id).value = '');
+  runExplore();
+});
+
+$('#export').addEventListener('click', async () => {
+  const btn = $('#export'); btn.disabled = true; btn.textContent = 'Préparation…';
+  try {
+    const res = await api('/api/analytics/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(exploreBody())
+    });
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `analyse_${$('#dim').value}_${$('#mes').value}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Classeur Excel téléchargé : synthèse + données sources.');
+  } catch (err) {
+    toast('Export impossible : ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Exporter en Excel';
+  }
+});
+
+/* =======================================================================
+   Démarrage
+   ======================================================================= */
+ping();
+loadKeywords();
+</script>
+</body>
+</html>
