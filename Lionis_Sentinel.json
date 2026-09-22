@@ -1,0 +1,166 @@
+{
+  "name": "Lionis Sentinel",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fb-scraper",
+        "options": {}
+      },
+      "id": "e3052264-b8a5-440e-9b9a-ce57e4e1652b",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        120
+      ],
+      "webhookId": "fb-scraper"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Le body reçu est un tableau de posts, chacun avec un tableau commentsData imbriqué\n// (format exporté par le bouton \"Envoyer vers n8n\" de l'extension).\n// On aplatit tout en items individuels, marqués par recordType ('post' ou 'comment'),\n// pour pouvoir les router ensuite vers la bonne table PostgreSQL via un noeud IF.\nconst posts = $input.first().json.body;\nconst output = [];\n\nfor (const p of posts) {\n  output.push({\n    json: {\n      recordType: 'post',\n      postId: p.postId,\n      feedbackId: p.feedbackId || null,\n      actors: p.actors,\n      text: p.text,\n      html: p.html,\n      attachments: p.attachments,\n      subattachments: p.subattachments,\n      comments: p.comments || 0,\n      likes: p.likes || 0,\n      shares: p.shares || 0,\n      pageUrl: p.pageUrl,\n      postUrl: p.postUrl,\n      publishTime: p.publishTime || null,\n      scrapedAt: p.scrapedAt,\n    }\n  });\n  for (const c of (p.commentsData || [])) {\n    output.push({\n      json: {\n        recordType: 'comment',\n        commentId: c.commentId,\n        postId: p.postId,\n        isReply: c.isReply ? true : false,\n        parentCommentId: c.parentCommentId || null,\n        actors: c.actors,\n        text: c.text,\n        html: c.html,\n        attachments: c.attachments,\n        likes: c.likes || 0,\n        commentUrl: c.commentUrl,\n        scrapedAt: c.scrapedAt,\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "id": "c85df6ad-05a0-4356-ac8f-a317f22ea6aa",
+      "name": "Aplatir Posts + Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.recordType }}",
+              "rightValue": "post",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "59a8b365-516e-4035-a831-8ab1b42aa681",
+      "name": "Post ou Comment ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO social_post (post_id, feedback_id, actors, texte, html, attachments, subattachments, nb_comments, nb_likes, nb_shares, page_url, post_url, publish_time, scraped_at)\nVALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\nON CONFLICT (post_id) DO UPDATE SET\n  nb_comments = EXCLUDED.nb_comments,\n  nb_likes = EXCLUDED.nb_likes,\n  nb_shares = EXCLUDED.nb_shares,\n  scraped_at = EXCLUDED.scraped_at;",
+        "options": {
+          "queryReplacement": "={{ [$json.postId, $json.feedbackId, $json.actors, $json.text, $json.html, $json.attachments, $json.subattachments, $json.comments, $json.likes, $json.shares, $json.pageUrl, $json.postUrl, $json.publishTime, $json.scrapedAt] }}"
+        }
+      },
+      "id": "97af1bd1-6cb7-4b5a-bfb3-6eeb62bb6e8c",
+      "name": "PostgreSQL - Upsert social_post",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pYxDiS3SpObPC2kU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO social_commentaire (comment_id, post_id, is_reply, parent_comment_id, actors, texte, html, attachments, nb_likes, comment_url, scraped_at, tri_utilise)\nVALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'tous_les_commentaires')\nON CONFLICT (comment_id) DO UPDATE SET\n  nb_likes = EXCLUDED.nb_likes,\n  scraped_at = EXCLUDED.scraped_at;",
+        "options": {
+          "queryReplacement": "={{ [$json.commentId, $json.postId, $json.isReply, $json.parentCommentId, $json.actors, $json.text, $json.html, $json.attachments, $json.likes, $json.commentUrl, $json.scrapedAt] }}"
+        }
+      },
+      "id": "90513f86-d8e2-49dd-b439-5d26ac485d1d",
+      "name": "PostgreSQL - Upsert social_commentaire",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pYxDiS3SpObPC2kU",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Aplatir Posts + Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplatir Posts + Comments": {
+      "main": [
+        [
+          {
+            "node": "Post ou Comment ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post ou Comment ?": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Upsert social_post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PostgreSQL - Upsert social_commentaire",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "855a970d-6e9f-4f51-9d56-e04e29904160",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ce104f6a852ec7a9828d7f011802396e66fcd8a44761622251df6830e495173f"
+  },
+  "id": "Zj20PpLjwo7L0WxR",
+  "tags": []
+}

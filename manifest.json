@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "FB Post Scraper - Export JSON/CSV",
+  "version": "1.0.0",
+  "description": "Scrape des posts Facebook (groupes ou pages) directement dans le navigateur et exporte en JSON ou CSV.",
+  "permissions": ["activeTab", "scripting", "storage", "alarms", "tabs"],
+  "host_permissions": ["https://www.facebook.com/*"],
+  "action": {
+    "default_title": "FB Post Scraper (clique pour afficher/masquer le panneau)"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
